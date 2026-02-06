@@ -20,6 +20,7 @@ Imports:
     gghalves,
     ggplot2,
     Matrix,
+    patchwork,
     reticulate,
     Seurat,
     SingleCellExperiment,
