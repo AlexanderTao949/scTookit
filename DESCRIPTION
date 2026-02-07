@@ -21,9 +21,11 @@ Imports:
     ggplot2,
     Matrix,
     patchwork,
+    RColorBrewer,
     reticulate,
     Seurat,
     SingleCellExperiment,
+    stats,
     tibble
 Encoding: UTF-8
 LazyData: true
