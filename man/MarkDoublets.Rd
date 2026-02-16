@@ -16,4 +16,6 @@ A seurat object whose metadata contain doublet scores and predictions for each b
 }
 \description{
 Performs doublet detection by wrapping the Python Scrublet package via reticulate.
+  Note: Users must manually initialize the Python environment containing the scrublet library
+  before running this function, e.g., using \code{reticulate::use_condaenv()}.
 }

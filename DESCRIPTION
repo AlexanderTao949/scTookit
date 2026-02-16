@@ -1,32 +1,37 @@
-Package: scTookit
 Type: Package
+Package: scTookit
 Title: My scRNA-seq analysis toolkit
 Version: 0.1.1
-Authors@R: c(
-    person(
-      "Yuheng", "Tao",
-      email = "yuhengtao290037@stu.njmu.edu.cn",
-      role = c("aut", "cre")
-    )
-  )
-Description: Collection of multiple useful functions for scRNA-seq analysis.
+Authors@R: 
+    person("Yuheng", "Tao", , "yuhengtao290037@stu.njmu.edu.cn", role = c("aut", "cre"))
+Description: Collection of multiple useful functions for scRNA-seq
+    analysis.
 License: MIT + file LICENSE
 Depends:
     R (>= 4.0.0)
 Imports:
     bluster,
+    data.table,
     decontX,
     dplyr,
     gghalves,
     ggplot2,
+    ggsci,
+    grid,
+    magrittr,
     Matrix,
+    paletteer,
     patchwork,
+    plyr,
     RColorBrewer,
     reticulate,
+    rlang,
+    scales,
     Seurat,
     SingleCellExperiment,
     stats,
-    tibble
+    tibble,
+    utils
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.3

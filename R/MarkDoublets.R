@@ -44,6 +44,8 @@ calculate_pN <- function(cell_count) {
 #' Detect doublet cells using Scrublet
 #'
 #' @description Performs doublet detection by wrapping the Python Scrublet package via reticulate.
+#'   Note: Users must manually initialize the Python environment containing the scrublet library
+#'   before running this function, e.g., using \code{reticulate::use_condaenv()}.
 #'
 #' @param seu A Seurat object containing RNA count data
 #' @param PN Expected doublet rate. If NULL, automatically calculated using calculate_pN()
@@ -76,7 +78,6 @@ MarkDoublets <- function(seu, PN = NULL){
   }
   counts_matrix <- prepare_counts_matrix(counts_matrix)
 
-  # 定义并加载Python函数
   reticulate::py_run_string("
 import pandas as pd
 import anndata
