@@ -9,6 +9,19 @@
 #' @param seu A Seurat object containing single-cell data.
 #' @param assay Name of assay to use (default: "RNA").
 #' @param slot Data slot to use (default: "counts").
+#' @param scale Logical value indicating whether to apply Z-score normalization to gene expression values.
+#'   If \code{TRUE} (default), expression values for each gene are scaled across all cell groups
+#'   (mean = 0, SD = 1), with colors representing deviation from the mean (red = high, blue = low).
+#'   This facilitates cross-gene comparison of relative expression patterns.
+#'   If \code{FALSE}, raw expression values are log1p-transformed without standardization,
+#'   preserving absolute expression magnitude but making cross-gene comparison less meaningful.
+#'   Similar to the \code{scale} parameter in Seurat's DotPlot function.
+#' @param zscore_cutoff Numeric value specifying the truncation threshold for Z-scores.
+#'   Default is \code{2.5}. Extreme Z-score values (e.g., > 2.5 or < -2.5) are winsorized
+#'   (capped at this threshold) to prevent outlier cell groups from compressing the color scale
+#'   resolution for the majority of data points. This ensures that subtle expression differences
+#'   across most groups remain visually distinguishable.
+#'   Only applicable when \code{scale = TRUE}.
 #' @param facet A logical value that controls whether faceted display is enabled.
 #'   - If `TRUE` (default): enables faceting using the \code{names(markerlist)}.
 #'   - If `FALSE`: generates a unified plot without faceting.
@@ -35,13 +48,25 @@
 #'
 #' @export
 
-MarkDotplot <- function(markerlist = NULL, seu = NULL, assay = "RNA", slot = "counts", facet = FALSE) {
+MarkDotplot <- function(markerlist = NULL,
+                        seu = NULL,
+                        assay = "RNA",
+                        slot = "data",
+                        facet = FALSE,
+                        scale = TRUE,
+                        zscore_cutoff = 2.5) {
 
-  if (is.null(seu) || is.null(markerlist)) stop("Both seu and markerlist must be provided")
+  if (is.null(seu) || is.null(markerlist)) {
+    stop("Both seu and markerlist must be provided")
+  }
 
   genes_all <- unlist(markerlist)
   genes_valid <- intersect(genes_all, rownames(seu))
   clusters <- levels(Idents(seu))
+
+  if (length(genes_valid) == 0) {
+    stop("No valid genes found in the Seurat object")
+  }
 
   cluster_cells <- lapply(setNames(nm = clusters), function(cl) {
     WhichCells(seu, ident = cl)
@@ -62,7 +87,7 @@ MarkDotplot <- function(markerlist = NULL, seu = NULL, assay = "RNA", slot = "co
 
       data.frame(
         Function = func_name,
-        Gene = rep(genes_func, each = 1),
+        Gene = genes_func,
         Group = cl,
         AvgExpr = avg_expr,
         PctExpr = pct_expr,
@@ -71,10 +96,36 @@ MarkDotplot <- function(markerlist = NULL, seu = NULL, assay = "RNA", slot = "co
     }))
   }))
 
-  result_split <- split(result_data$AvgExpr, result_data$Gene)
-  max_vals <- vapply(result_split, max, numeric(1))
-  max_vals[max_vals <= 0] <- 1
-  result_data$AvgExpr <- result_data$AvgExpr / max_vals[result_data$Gene]
+  if (scale) {
+
+    result_split <- split(result_data$AvgExpr, result_data$Gene)
+
+    zscore_list <- lapply(result_split, function(x) {
+      if (length(x) > 1) {
+        mean_val <- mean(x, na.rm = TRUE)
+        sd_val <- sd(x, na.rm = TRUE)
+
+        if (sd_val == 0 || is.na(sd_val)) {
+          return(rep(0, length(x)))
+        }
+
+        zscore <- (x - mean_val) / sd_val
+        zscore <- pmax(pmin(zscore, zscore_cutoff), -zscore_cutoff)
+        return(zscore)
+      } else {
+        return(0)
+      }
+    })
+
+    result_data$AvgExpr <- unlist(zscore_list)[as.character(result_data$Gene)]
+
+    color_title <- "Z-score\nExpression"
+    color_limits <- c(-zscore_cutoff, zscore_cutoff)
+  } else {
+    result_data$AvgExpr <- log1p(result_data$AvgExpr)
+    color_title <- "Log1p\nExpression"
+    color_limits <- NULL
+  }
 
   result_data$Function <- factor(result_data$Function, levels = names(markerlist))
   unique_genes <- rev(genes_all[!duplicated(genes_all)])
@@ -87,12 +138,18 @@ MarkDotplot <- function(markerlist = NULL, seu = NULL, assay = "RNA", slot = "co
     geom_point() +
     scale_color_gradientn(
       colours = rev(brewer.pal(n = 10, name = "RdBu")),
-      guide = guide_colorbar(ticks.colour = "black", frame.colour = "black"),
-      name = "Relative\nExpression"
+      guide = guide_colorbar(
+        ticks.colour = "black",
+        frame.colour = "black",
+        title = color_title
+      ),
+      limits = color_limits,
+      name = color_title
     ) +
     scale_size_continuous(
       name = "Percentage\nExpressed",
-      range = c(0, 6)) +
+      range = c(0, 6)
+    ) +
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
