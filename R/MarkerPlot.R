@@ -48,43 +48,39 @@
 #'
 #' @export
 
-MarkDotplot <- function(markerlist = NULL,
-                        seu = NULL,
-                        assay = "RNA",
-                        slot = "data",
-                        facet = FALSE,
-                        scale = TRUE,
+MarkDotplot <- function(markerlist = NULL, seu = NULL, assay = "RNA", 
+                        slot = "data", facet = TRUE, 
+                        scale = FALSE,
                         zscore_cutoff = 2.5) {
-
+  
   if (is.null(seu) || is.null(markerlist)) {
     stop("Both seu and markerlist must be provided")
   }
-
+  
   genes_all <- unlist(markerlist)
   genes_valid <- intersect(genes_all, rownames(seu))
   clusters <- levels(Idents(seu))
-
+  
   if (length(genes_valid) == 0) {
     stop("No valid genes found in the Seurat object")
   }
-
+  
   cluster_cells <- lapply(setNames(nm = clusters), function(cl) {
     WhichCells(seu, ident = cl)
   })
-
+  
   counts_data <- GetAssayData(seu, assay = assay, slot = slot)
-
+  
   result_data <- do.call(rbind, lapply(names(markerlist), function(func_name) {
     genes_func <- intersect(markerlist[[func_name]], genes_valid)
     if (length(genes_func) == 0) return(NULL)
-
+    
     do.call(rbind, lapply(clusters, function(cl) {
       cells <- cluster_cells[[cl]]
       mat <- counts_data[genes_func, cells, drop = FALSE]
-
       avg_expr <- Matrix::rowMeans(mat)
       pct_expr <- Matrix::rowSums(mat > 0) / length(cells) * 100
-
+      
       data.frame(
         Function = func_name,
         Gene = genes_func,
@@ -95,35 +91,31 @@ MarkDotplot <- function(markerlist = NULL,
       )
     }))
   }))
-
+  
   if (scale) {
+    result_data <- result_data[order(result_data$Gene, result_data$Group), ]
 
-    result_split <- split(result_data$AvgExpr, result_data$Gene)
-
-    zscore_list <- lapply(result_split, function(x) {
-      if (length(x) > 1) {
-        mean_val <- mean(x, na.rm = TRUE)
-        sd_val <- sd(x, na.rm = TRUE)
-
-        if (sd_val == 0 || is.na(sd_val)) {
-          return(rep(0, length(x)))
-        }
-
-        zscore <- (x - mean_val) / sd_val
-        zscore <- pmax(pmin(zscore, zscore_cutoff), -zscore_cutoff)
-        return(zscore)
+    avg.exp.scaled <- sapply(unique(result_data$Gene), function(x) {
+      data.use <- result_data[result_data$Gene == x, "AvgExpr"]
+      if (length(data.use) > 1 && sd(data.use) > 0) {
+        data.use <- scale(data.use)[,1]  
+        data.use[data.use < -zscore_cutoff] <- -zscore_cutoff
+        data.use[data.use > zscore_cutoff] <- zscore_cutoff
       } else {
-        return(0)
+        data.use <- rep(0, length(data.use))  
       }
+      return(data.use)
     })
-
-    result_data$AvgExpr <- unlist(zscore_list)[as.character(result_data$Gene)]
-
-    color_title <- "Z-score\nExpression"
+    
+    result_data$AvgExpr <- as.vector(t(avg.exp.scaled))
+    color_title <- "Average\nexpression"
     color_limits <- c(-zscore_cutoff, zscore_cutoff)
   } else {
-    result_data$AvgExpr <- log1p(result_data$AvgExpr)
-    color_title <- "Log1p\nExpression"
+    result_split <- split(result_data$AvgExpr, result_data$Gene)
+    max_vals <- vapply(result_split, max, numeric(1))
+    max_vals[max_vals <= 0] <- 1
+    result_data$AvgExpr <- result_data$AvgExpr / max_vals[result_data$Gene]
+    color_title <- "Relative\nExpression"
     color_limits <- NULL
   }
 
@@ -131,19 +123,19 @@ MarkDotplot <- function(markerlist = NULL,
   unique_genes <- rev(genes_all[!duplicated(genes_all)])
   result_data$Gene <- factor(result_data$Gene, levels = unique_genes)
   result_data$Group <- factor(result_data$Group, levels = rev(levels(Idents(seu))))
-
+  
   p <- ggplot(result_data,
               aes(y = Group, x = Gene,
                   color = AvgExpr, size = PctExpr)) +
     geom_point() +
     scale_color_gradientn(
       colours = rev(brewer.pal(n = 10, name = "RdBu")),
+      limits = color_limits,
       guide = guide_colorbar(
-        ticks.colour = "black",
+        ticks.colour = "black", 
         frame.colour = "black",
         title = color_title
       ),
-      limits = color_limits,
       name = color_title
     ) +
     scale_size_continuous(
@@ -163,7 +155,7 @@ MarkDotplot <- function(markerlist = NULL,
     ) +
     xlab("Genes") +
     ylab("Cell Clusters")
-
+  
   if (facet) {
     p <- p + facet_grid(
       . ~ Function,
@@ -171,7 +163,6 @@ MarkDotplot <- function(markerlist = NULL,
       space = "free_x"
     )
   }
-
+  
   return(p)
 }
-
