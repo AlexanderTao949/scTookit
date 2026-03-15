@@ -18,10 +18,10 @@
 #' 4. Reconstructs the imputed matrix from the NMF factors.
 #' 5. Adds the imputed matrix as a new assay to the Seurat object.
 #'
-#' @import Seurat
-#' @import RcppML
-#' @import Matrix
+#' @importFrom Matrix rowSums
+#' @importFrom RcppML nmf setRcppMLthreads
 #' @importFrom parallel detectCores
+#' @importFrom methods slot
 #' @export
 impute_nmf <- function(seu, min_cells = 50, k = 100, threads = 1, seed = 1024) {
   #### Method-1: NMF ####
